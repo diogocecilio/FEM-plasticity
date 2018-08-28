@@ -1,4 +1,4 @@
-INTERNALLY PRESSURISED CYLINDER -  von Mises material
+(*INTERNALLY PRESSURISED CYLINDER -  von Mises material*)
 Compute2DShape[order_,eltype_]:=Block[{zeta1,zeta2,zeta3,a,b,xi,eta,psis,dpsis},
 psis={xi eta(xi-1)(eta-1)/4,xi eta(xi+1)(eta-1)/4,xi eta(xi+1)(eta+1)/4,xi eta(xi-1)(eta+1)/4,
 -eta(xi+1)(xi-1)(eta-1)/2,-xi(xi+1)(eta+1)(eta-1)/2,-eta(xi+1)(xi-1)(eta+1)/2,-xi(xi-1)(eta+1)(eta-1)/2,
@@ -7,7 +7,7 @@ dpsis=Transpose[Table[{D[psis[[i]],xi],D[psis[[i]],eta]},{i,1,Length[psis]}]];
 {psis,dpsis}
 ];
 
-Pontos e pesos -Gauss Quadrature;
+(*Pontos e pesos -Gauss Quadrature;*)
 <<NumericalDifferentialEquationAnalysis`
 IntegrationRule[porder_,eltype_]:=Block[{pts,w,npts,matpsts},
 If[eltype==1,
@@ -25,7 +25,7 @@ matpsts={{1/6,1/6,1/2 1/3},{2/3,1/6,1/2 1/3},{1/6,2/3,1/2 1/3}};
 N[matpsts]
 ];
 
-Global Assemble;
+(*Global Assemble;*)
 Assemble[allcoords_,nnodes_,topol_,order_,eltype_,displacement_]:=Block[{nels,rows,sz,cols,Kglob,Fglob,co,Ke,Fe,fu,rowglob,colglob,uglob},
 
 nels=Length[allcoords];
@@ -56,7 +56,7 @@ Fglob[[2rowglob]]+=Fe[[2 i]];
 {Kglob,Fglob}
 ];
 
-Compute a unitary normal vector wrt a circle o radius R;
+(*Compute a unitary normal vector wrt a circle o radius R;*)
 ComputeNormals[pt_,R_]:=Block[{lines,x,normal,v,delta=10^-9},
 rr[x_]=-(x/Sqrt[R^2-(1-delta)x^2]);
 pervec[v_]:={-(v[[2]]/Norm[v]),v[[1]]/Norm[v]};
@@ -65,7 +65,7 @@ normal=({pt[[1]]+delta,lines/.x->pt[[1]]+delta}-{pt[[1]],lines/.x->pt[[1]]})/Nor
 pervec[normal]
 ];
 
-Compute one dimension shape functions;
+(*Compute one dimension shape functions;*)
 ComputeShape[order_,var_,x0_,xf_]:=Block[{npoints},
 npoints=order+1;
 tab3[i_,n_]:=Table[If[j==i,1,0],{j,1,n}];
@@ -73,7 +73,7 @@ poli3[j_,n_]:=Table[{x0+(xf -x0)(i-1)/(n-1),tab3[j,n][[i]]},{i,1,n}];
 ListPoli[n_]:=Table[InterpolatingPolynomial[poli3[i,n],var],{i,1,n}];
 ListPoli[npoints]
 ]
-Find node ids;
+(*Find node ids;*)
 FindIds[nodes_,coords_]:=Block[{nodestofind=Nearest[nodes,coords][[All,1]]},Flatten[Position[nodes,Alternatives@@nodestofind]]];
 
 (*Find node id*)
@@ -91,7 +91,7 @@ k+=order;
 vg
 ];
 
-Compute the force vector in a circle;
+(*Compute the force vector in a circle;*)
 ContributeLineNewmanPressure[nodes_,order_,ids_,R_,f_]:=Block[{vecint,Ef,top,i,pt,xf,x,shapes,normal,integral,deltas,lengths},
 vecint={};
 Ef=Table[0,{Length[nodes]2}];
@@ -117,7 +117,7 @@ Ef[[top[[i,j]]2]]+=integral[[j]]normal[[2]];
 ];
 Ef
 ];
-Dirichlet BC;
+(*Dirichlet BC;*)
 ContributeLineDirichlet[EK_,EF_,ids_,{dir_,val_}]:=Block[{nodes,i,j,k,Ek=EK,Ef=EF},
 nodes=Length[ids];
 For[i=1,i<=nodes,i++,
@@ -179,7 +179,7 @@ ef=(Transpose[B].stress)weight DetJ;
 {ek,ef}
 ];
 
- Assemble the element stiffness matrix and internal force vectors;
+ (*Assemble the element stiffness matrix and internal force vectors;*)
 CalcStiff[order_,elcoords_,eltype_,eldisplacement_]:=Block[{nnodes,ek,ef,intrule,psis,GradPsi,xi,eta,data,w,npts},
 
 nnodes=Length[elcoords];
@@ -197,7 +197,7 @@ data={psis,GradPsi,elcoords,w,eldisplacement};
 {ek,ef}
 ];
 
-Material point plastic integration;
+(*Material point plastic integration;*)
 Fx[{sigxx_, sigyy_ , sigzz_, sigyz_, sigxz_, sigxy_}]:=Sqrt[sigxx^2+3 sigxy^2+3 sigxz^2+sigyy^2+3 sigyz^2-sigyy sigzz+sigzz^2-sigxx (sigyy+sigzz)]-sig0;
 Fprinc[{sig1_,sig2_,sig3_}]:=Sqrt[sig1^2+sig2^2-sig2 sig3+sig3^2-sig1 (sig2+sig3)]-sig0
 ap[{sig1_,sig2_,sig3_}]:={(2 sig1-sig2-sig3)/(2 Sqrt[sig1^2+sig2^2-sig2 sig3+sig3^2-sig1 (sig2+sig3)]),(-sig1+2 sig2-sig3)/(2 Sqrt[sig1^2+sig2^2-sig2 sig3+sig3^2-sig1 (sig2+sig3)]),(-sig1-sig2+2 sig3)/(2 Sqrt[sig1^2+sig2^2-sig2 sig3+sig3^2-sig1 (sig2+sig3)])}
@@ -234,14 +234,10 @@ oderedvectors=Table[epstprincipaldir[[index[[i]]]],{i,1,3}];
 FromVoigtToCart[sig_]:={{sig[[1]],sig[[6]],sig[[5]]},{sig[[6]],sig[[2]],sig[[4]]},{sig[[5]],sig[[4]],sig[[3]]}}
 FromCartToVoigt[sig_]:={sig[[1,1]],sig[[2,2]],sig[[3,3]],sig[[2,3]],sig[[1,3]],sig[[1,2]]}
 ApplyStrainComputeSigmaDep3D[epst_,epsp_]:=Block[{sx,sy,tauxy,sz,ex,ey,exy,sigproj2D,Dep2D,epse2D,Dep,qtrial,gamma,epsetrial,flag,fulltrialstress,dadsigg,sigprojfull,projepse,epsefull,sigsol,R,asol,epse,dlambda,Q,invQ,Ctc,Ce,projsig,projsigstar,internalstress,sstarsurface,epstprincipalvals,epstprincipaldir,epspprincipalvals,epspprincipaldir,fullepst,fullepsp,sigtrprincipalvals,sigtrprincipaldir,sigtrialvoigth,sigprojvoigth,Ce2,G=young/(2(1+nu)),K=young/(3(1-2nu))},
-Ce=((4 G)/3+K	-((2 G)/3)+K	-((2 G)/3)+K	0	0	0
--((2 G)/3)+K	(4 G)/3+K	-((2 G)/3)+K	0	0	0
--((2 G)/3)+K	-((2 G)/3)+K	(4 G)/3+K	0	0	0
-0	0	0	G	0	0
-0	0	0	0	G	0
-0	0	0	0	0	G
-
-);
+Ce={{(4 G)/3 + K, -((2 G)/3) + K, -((2 G)/3) + K, 0, 0, 
+  0}, {-((2 G)/3) + K, (4 G)/3 + K, -((2 G)/3) + K, 0, 0, 
+  0}, {-((2 G)/3) + K, -((2 G)/3) + K, (4 G)/3 + K, 0, 0, 0}, {0, 0, 
+  0, G, 0, 0}, {0, 0, 0, 0, G, 0}, {0, 0, 0, 0, 0, G}};
 
 epsetrial=(epst-epsp);
 (*Print["epsetrial = ",epsetrial];*)
@@ -578,40 +574,7 @@ factor+=1/steps;
 (*Atualiza variável de estado plástica no passo convergido*)
 epspsolitern=epspvec;
 ];
-{0.520589,0.728825,0.937061,0.98912,1.}
-i = 1 | fac = 0.520589 | diverge = False
-Iteration number = 1  |R|/|FE| =  5.20589  |Δu|/|u| = 1.  |R| =  5.17804 |dw| = 0.928717
-Iteration number = 2  |R|/|FE| =  3.50155*10^-13  |Δu|/|u| = 6.405*10^-15  |R| =  3.48282*10^-13 |dw| = 5.94843*10^-15
-i = 2 | fac = 0.728825 | diverge = False
-Iteration number = 1  |R|/|FE| =  1.04118  |Δu|/|u| = 0.285714  |R| =  2.07121 |dw| = 0.371487
-Iteration number = 2  |R|/|FE| =  1.26315  |Δu|/|u| = 0.0752628  |R| =  2.51279 |dw| = 0.105795
-Iteration number = 3  |R|/|FE| =  0.0343336  |Δu|/|u| = 0.000862015  |R| =  0.0682998 |dw| = 0.00121274
-Iteration number = 4  |R|/|FE| =  0.0000143861  |Δu|/|u| = 3.25627*10^-7  |R| =  0.0000286182 |dw| = 4.58113*10^-7
-Iteration number = 5  |R|/|FE| =  2.45422*10^-12  |Δu|/|u| = 5.29188*10^-14  |R| =  4.88217*10^-12 |dw| = 7.44495*10^-14
-i = 3 | fac = 0.937061 | diverge = False
-Iteration number = 1  |R|/|FE| =  0.694128  |Δu|/|u| = 0.323927  |R| =  2.07124 |dw| = 0.673947
-Iteration number = 2  |R|/|FE| =  1.18937  |Δu|/|u| = 0.144389  |R| =  3.54903 |dw| = 0.350909
-Iteration number = 3  |R|/|FE| =  0.496386  |Δu|/|u| = 0.0466375  |R| =  1.48119 |dw| = 0.118874
-Iteration number = 4  |R|/|FE| =  0.00927106  |Δu|/|u| = 0.000374507  |R| =  0.0276644 |dw| = 0.000954932
-Iteration number = 5  |R|/|FE| =  1.83631*10^-6  |Δu|/|u| = 7.96906*10^-8  |R| =  5.47944*10^-6 |dw| = 2.03198*10^-7
-Iteration number = 6  |R|/|FE| =  1.33683*10^-13  |Δu|/|u| = 8.40309*10^-15  |R| =  3.98903*10^-13 |dw| = 2.14265*10^-14
-i = 4 | fac = 0.98912 | diverge = False
-Iteration number = 1  |R|/|FE| =  0.133186  |Δu|/|u| = 0.171012  |R| =  0.529895 |dw| = 0.525927
-Iteration number = 2  |R|/|FE| =  0.48936  |Δu|/|u| = 0.0889161  |R| =  1.94697 |dw| = 0.300108
-Iteration number = 3  |R|/|FE| =  0.155136  |Δu|/|u| = 0.0269202  |R| =  0.617225 |dw| = 0.0933725
-Iteration number = 4  |R|/|FE| =  0.00197242  |Δu|/|u| = 0.000186993  |R| =  0.00784748 |dw| = 0.000648704
-Iteration number = 5  |R|/|FE| =  2.01525*10^-7  |Δu|/|u| = 2.00223*10^-8  |R| =  8.01785*10^-7 |dw| = 6.94602*10^-8
-Iteration number = 6  |R|/|FE| =  9.58136*10^-14  |Δu|/|u| = 1.71403*10^-14  |R| =  3.81204*10^-13 |dw| = 5.94622*10^-14
-i = 5 | fac = 1. | diverge = False
-Iteration number = 1  |R|/|FE| =  0.0264626  |Δu|/|u| = 0.106896  |R| =  0.131605 |dw| = 0.415201
-Iteration number = 2  |R|/|FE| =  0.110309  |Δu|/|u| = 0.088744  |R| =  0.548591 |dw| = 0.378252
-Iteration number = 3  |R|/|FE| =  0.218737  |Δu|/|u| = 0.245192  |R| =  1.08783 |dw| = 1.38446
-Iteration number = 4  |R|/|FE| =  0.0626498  |Δu|/|u| = 0.196897  |R| =  0.311573 |dw| = 1.38428
-Iteration number = 5  |R|/|FE| =  0.0219568  |Δu|/|u| = 0.116204  |R| =  0.109196 |dw| = 0.924373
-Iteration number = 6  |R|/|FE| =  0.00506078  |Δu|/|u| = 0.0321215  |R| =  0.0251685 |dw| = 0.263996
-Iteration number = 7  |R|/|FE| =  0.000301764  |Δu|/|u| = 0.00192191  |R| =  0.00150075 |dw| = 0.015826
-Iteration number = 8  |R|/|FE| =  1.00927*10^-6  |Δu|/|u| = 6.30945*10^-6  |R| =  5.01936*10^-6 |dw| = 0.0000519555
-Iteration number = 9  |R|/|FE| =  1.08346*10^-11  |Δu|/|u| = 6.77325*10^-11  |R| =  5.38833*10^-11 |dw| = 5.57746*10^-10
+
 sol1=solss[[5]];
 scale=30;
 deformed=(Flatten[nnodes]+scale sol1);
@@ -655,10 +618,6 @@ tab=Table[{u[data[[i]]]//.subst ,data[[i]]},{i,1,Length[data]}];
 AppendTo[tab,{0.5,0.19208}];
 lp=ListLinePlot[tab,PlotStyle->{Black},Frame->True,PlotLegends->{"Analytical Solution (Hill - 1950)"}];
 Show[lp,ListPlot[sol2,PlotRange->All,PlotMarkers->{Automatic,12},Frame->True,FrameLabel->{"radial displacement at outer face (mm)","Pressure (MPa)"},PlotLegends->{"Present Solution"}],PlotRange->All,AspectRatio->1,ImageSize->400]
-DynamicFindRoot::lstol: The line search decreased the step size to within tolerance specified by AccuracyGoal and PrecisionGoal but was unable to find a sufficient decrease in the merit function. You may need more than MachinePrecision digits of working precision to meet these tolerances.
-Analytical Solution (Hill - 1950)
-Present Solution
-
 
 Clear[r]
 tabsr1=Table[{r,ComputeAnalyticalStress[r,0.18][[1]]},{r,100,200,0.5}];
@@ -694,26 +653,6 @@ ssx2=Table[{stredata[[idss[[i]]]][[1]][[1]],stredata[[idss[[i]]]][[2]][[sx]]},{i
 ssy2=Table[{stredata[[idss[[i]]]][[1]][[1]],stredata[[idss[[i]]]][[2]][[sy]]},{i,1,Length[idss]}];
 Show[ListPlot[{ssx1,ssx2},Frame->True,AspectRatio->1.,PlotMarkers->{Automatic, 12},PlotLegends->{"radial stress P = 0.10 GPa","radial stress P = 0.18 GPa"}],lpa1]
 Show[ListPlot[{ssy1,ssy2},Frame->True,AspectRatio->1.,PlotMarkers->{Automatic, 12},PlotLegends->{"tangential stress P = 0.10 GPa","tangential stress P = 0.18 GPa"}],lpa2]
-200
-200
-	radial stress P = 0.10 GPa
-	radial stress P = 0.18 GPa
-
-
-	 (Hill - 1950) radial stress P = 0.10 GPa 
-	 (Hill - 1950)  radial stress P = 0.18 GPa
-
-
-
-
-	tangential stress P = 0.10 GPa
-	tangential stress P = 0.18 GPa
-
-
-	 (Hill - 1950) tangencial stress P = 0.10 GPa 
-	 (Hill - 1950) tangencial stress P = 0.18 GPa
-
-
 
 
 RR=100;

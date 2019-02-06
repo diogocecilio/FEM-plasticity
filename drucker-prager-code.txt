@@ -1,0 +1,822 @@
+(*Transforma tensor vetorial de voigth em tensor  3x3*)
+FromVoigtToCart[
+  sig_] := {{sig[[1]], sig[[6]], sig[[5]]}, {sig[[6]], sig[[2]], 
+   sig[[4]]}, {sig[[5]], sig[[4]], sig[[3]]}}
+(*Transforma tensor  3x3 em tensor vetorial de voigth *)
+FromCartToVoigt[sig_] := {sig[[1, 1]], sig[[2, 2]], sig[[3, 3]], 
+  sig[[2, 3]], sig[[1, 3]], sig[[1, 2]]}
+FromCartToVoigt2[sig_] := {sig[[1, 1]], sig[[2, 2]], sig[[3, 3]], 
+  2 sig[[2, 3]], 2 sig[[1, 3]], 2 sig[[1, 2]]}
+ComputeS[m_] := Block[{cart, Sint},
+  cart = FromVoigtToCart[m];
+  Sint = cart - 1/3 Tr[cart] IdentityMatrix[3];
+  FromCartToVoigt2[Sint]
+  ]
+ComputeJ2[m_] := Block[{cart, S},
+  cart = FromVoigtToCart[m];
+  S = cart - 1/3 Tr[cart] IdentityMatrix[3];
+  1/2. Tr[S.S]
+  ]
+ComputeI1[m_] := Block[{cart, S},
+  cart = FromVoigtToCart[m];
+  N[Tr[cart]]
+  ]
+P = {{2/3, -1/3, -1/3, 0, 0, 0}, {-1/3, 2/3, -1/3, 0, 0, 
+     0}, {-1/3, -1/3, 2/3, 0, 0, 0}, {0, 0, 0, 2, 0, 0}, {0, 0, 0, 0, 
+     2, 0}, {0, 0, 0, 0, 0, 2}} // N;
+ax[sigma_] := 
+ A/3 {1, 1, 1, 0, 0, 0} + 
+   1/(2 Sqrt[ComputeJ2[sigma]]) ComputeS[sigma] //. subst2
+dadsigmax[sigma_] := 
+ P 1/(2 Sqrt[ComputeJ2[sigma]]) - 
+  1/(4 ComputeJ2[sigma]^(3/2)) Outer[Times, ComputeS[sigma], 
+    ComputeS[sigma]]
+(*Calcula autovalores e autovetores e ordena na ordem decrescente*)
+EigenSystem[m_] := 
+ Block[{epstprincipalvals, epstprincipaldir, orderedvalues, index, 
+   oderedvectors, cart},
+  cart = FromVoigtToCart[m];
+  {epstprincipalvals, epstprincipaldir} = Eigensystem[cart // N];
+  orderedvalues = Sort[epstprincipalvals, Greater];
+  index = 
+   DeleteDuplicates[
+    Table[Position[epstprincipalvals, orderedvalues[[i]]], {i, 1, 
+       3}] // Flatten];
+  oderedvectors = Table[epstprincipaldir[[index[[i]]]], {i, 1, 3}];
+  {orderedvalues, oderedvectors}
+  ]
+HW[{xi_, rho_, beta_}] := Block[{sig1, sig2, sig3},
+   sig1 = xi /Sqrt[3] + Sqrt[2/3] rho Cos[beta];
+   sig2 = xi/Sqrt[3] + Sqrt[2/3] rho Cos[beta - 2 Pi/3];
+   sig3 = xi/Sqrt[3] + Sqrt[2/3] rho Cos[beta + 2 Pi/3];
+   N[{sig1, sig2, sig3}]
+   ];
+
+F1HWCylDruckerPrager[{xi_, rho_, beta_}] := 
+ Block[{xiint, rhoint, betaint, sigy, A, B, c},
+  xiint = xi;
+  rhoint = Sqrt[2] (B c - A xi);
+  rhoint = Sqrt[2] B c - Sqrt[2/3] A xi;
+  betaint = beta;
+  N[{xiint, rhoint, betaint}]
+  ]
+FDP[I1_, J2_] := (Sqrt[J2] + A I1/3 - c B)
+ApplyStrainComputeSigmaDep[epst_, epsp_, subst2_] := 
+  Block[{invCe, R, Q, invQ, sig1, sig2, sig3, epse2D, sz, nu, ex, ey, 
+    exy, sx, sy, tauxy, sigproj2D, Dep2D, sn1, pn1, updatedstress, II,
+     eq, c , B, A, solgamma, full, dgamma, acone, yield, I1, J2, sol, 
+    d, Dep, CT, T, epse, gamma, epsetrial, sigprojvoigth, proj, asol, 
+    dadsigg, THWR, Rot, xitrial, xisol, xi, beta, rho, sigma, 
+    rhotrial, Ce, pt, vec, betasol, young, G, K, epstint, epspint},
+   
+   Ce = N[{{(4 G)/3 + K, -((2 G)/3) + K, -((2 G)/3) + K, 0, 0, 
+        0}, {-((2 G)/3) + K, (4 G)/3 + K, -((2 G)/3) + K, 0, 0, 
+        0}, {-((2 G)/3) + K, -((2 G)/3) + K, (4 G)/3 + K, 0, 0, 
+        0}, {0, 0, 0, G, 0, 0}, {0, 0, 0, 0, G, 0}, {0, 0, 0, 0, 0, 
+        G}}] //. \!\(\*
+TagBox["subst2",
+Function[BoxForm`e$, 
+MatrixForm[BoxForm`e$]]]\);
+   invCe = 
+    N[{{(G + 3 K)/(9 G K), -(1/(6 G)) + 1/(9 K), -(1/(6 G)) + 1/(9 K),
+         0, 0, 0}, {-(1/(6 G)) + 1/(9 K), (G + 3 K)/(
+        9 G K), -(1/(6 G)) + 1/(9 K), 0, 0, 
+        0}, {-(1/(6 G)) + 1/(9 K), -(1/(6 G)) + 1/(9 K), (G + 3 K)/(
+        9 G K), 0, 0, 0}, {0, 0, 0, 1/G, 0, 0}, {0, 0, 0, 0, 1/G, 
+        0}, {0, 0, 0, 0, 0, 1/G}}] //. subst2;
+   
+   epstint = {epst[[1]], epst[[2]], 0, 0, 0, epst[[3]]} // N;
+   epspint = {epsp[[1]], epsp[[2]], 0, 0, 0, epsp[[3]]} // N;
+   
+   epsetrial = (epstint - epspint);
+   
+   sigma = Ce.epsetrial;
+   
+   I1 = ComputeI1[sigma];
+   J2 = ComputeJ2[sigma];
+   yield = FDP[I1, J2] //. subst2;
+   
+   If[yield < 0,
+    sigprojvoigth = sigma;
+    epse = epsetrial;
+    Dep = Ce;
+    gamma = 0;
+    ,
+    
+    xitrial = I1/Sqrt[3];
+    rhotrial = Sqrt[2 J2];
+    
+    (*Auto valores em ordem decrescente*)
+    {pt, vec} = EigenSystem[sigma] // N;
+    
+    betasol = 
+     ArcTan[(Sqrt[3] (-sig2 + sig3))/(-2 sig1 + sig2 + sig3)] //. 
+       subst2 /. {sig1 -> pt[[1]], sig2 -> pt[[2]], sig3 -> pt[[3]]};
+    xisol = 
+     1/(6 (G + A^2 K)) (-3 A K (2 sig1 - sig2 - sig3) Cos[betasol] + 
+          Sqrt[3] (6 A B c K + 2 G (sig1 + sig2 + sig3) - 
+             3 A K (sig2 - sig3) Sin[betasol])) //. 
+       subst2 /. {sig1 -> pt[[1]], sig2 -> pt[[2]], sig3 -> pt[[3]]};
+    proj = HW[F1HWCylDruckerPrager[{xisol, rho, betasol}]] //. subst2;
+    sigprojvoigth = 
+     FromCartToVoigt[
+      Sum[proj[[i]] Outer[Times, vec[[i]], vec[[i]]], {i, 1, 3}]];
+    asol = ax[sigprojvoigth] //. subst2;
+    dadsigg = dadsigmax[sigprojvoigth] //. subst2;
+    epse = invCe.sigprojvoigth;
+    gamma = Norm[epsetrial - epse]/Norm[asol];
+    
+    dadsigg = dadsigmax[sigma] //. subst2;
+    CT = Ce.((IdentityMatrix[
+          6] - (Outer[Times, asol, asol].Ce)/(asol.Ce.asol)));
+    T = (IdentityMatrix[6] - gamma dadsigg.Ce );
+    Dep = CT.T;
+    
+    acone = Sqrt[J2] - gamma G //. subst2;
+    
+    If[acone < 0,
+     
+     (*Print["acone = ",acone];*)
+     II = {1, 1, 1, 0, 0, 0};
+      eq = (c B/A - I1/3 + K dgamma A) //. subst2;
+     solgamma = NSolve[eq == 0, dgamma][[1, 1, 2]];
+     Dep = 0 Outer[Times, II, II];
+     full = FromVoigtToCart[sigma];
+     
+     If[J2 <= 0,
+      (*no caso de tracao hidrostatica j2 = 0 *)
+      sn1 = 0;
+      ,
+      sn1 = (1 - G solgamma/Sqrt[J2]) (full - 
+            1/3 Tr[full] IdentityMatrix[3]) //. subst2;
+      ];
+     
+     pn1 = I1/3 - K A solgamma //. subst2;
+     updatedstress = sn1 + pn1 IdentityMatrix[3];
+     sigprojvoigth = FromCartToVoigt[updatedstress];
+     epse = invCe.sigprojvoigth;
+     gamma = solgamma;
+     ];
+    ];
+   Dep2D = {{Dep[[1, 1]], Dep[[1, 2]], Dep[[1, 6]]}, {Dep[[2, 1]], 
+      Dep[[2, 2]], Dep[[2, 6]]}, {Dep[[6, 1]], Dep[[6, 2]], 
+      Dep[[6, 6]]}};
+   sigproj2D = {sigprojvoigth[[1]], sigprojvoigth[[2]], 
+     sigprojvoigth[[6]]};
+   {sx, sy, tauxy} = sigproj2D;
+   sz = nu (sx + sy);
+   ex = 1/young (sx - nu (sy + sz));
+   ey = 1/young (sy - nu (sx + sz));
+   exy = tauxy/(G);
+   epse2D = {ex, ey, exy};
+   {sigproj2D, Dep2D, epse2D, gamma} //. subst2
+   
+   ];
+(*Compute2DShape*)
+Compute2DShape[order_, eltype_] := 
+  Block[{zeta1, zeta2, zeta3, a, b, xi, eta, psis, dpsis},
+   If[serendipity == True,
+    psis = {
+       (1 - xi) (1 - eta) (-xi - eta - 1)/
+         4,(*1*)(1 + xi) (1 - eta) (xi - eta - 1)/
+         4,(*2*)(1 + xi) (1 + eta) (xi + eta - 1)/
+         4,(*3*)(1 - xi) (1 + eta) (-xi + eta - 1)/4,(*4*)
+       (1 - xi^2) (1 - eta)/2,(*5*)(1 + xi) (1 - eta^2)/
+         2,(*6*)(1 - xi^2) (1 + eta)/2,(*7*)(1 - xi) (1 - eta^2)/
+         2(*8*)
+       };
+    ,
+    psis = {
+       xi eta (xi - 1) (eta - 1)/4, xi eta (xi + 1) (eta - 1)/4, 
+       xi eta (xi + 1) (eta + 1)/4, 
+       xi eta (xi - 1) (eta + 1)/4, -eta (xi + 1) (xi - 1) (eta - 1)/2,
+       -xi (xi + 1) (eta + 1) (eta - 1)/
+         2, -eta (xi + 1) (xi - 1) (eta + 1)/
+         2, -xi (xi - 1) (eta + 1) (eta - 1)/
+         2, (xi + 1) (xi - 1) (eta + 1) (eta - 1)
+       };
+    ];
+   dpsis = 
+    Transpose[
+     Table[{D[psis[[i]], xi], D[psis[[i]], eta]}, {i, 1, 
+       Length[psis]}]];
+   {psis, dpsis}
+   ];
+(****************************************************************************************)\
+
+(*IntegrationRule*)
+<< NumericalDifferentialEquationAnalysis`
+IntegrationRule[porder_, eltype_] := Block[{pts, w, npts, matpsts},
+   {pts, w} = Transpose[GaussianQuadratureWeights[porder + 2, -1, 1]];
+   npts = Length[pts];
+   matpsts = 
+    Flatten[Table[{pts[[j]], pts[[i]], w[[j]] w[[i]]}, {i, npts, 
+       1, -1}, {j, 1, npts}], 1];
+   N[matpsts]
+   ];
+(****************************************************************************************)\
+
+(*CalcStiff*)
+Assemble[allcoords_, nnodes_, topol_, order_, eltype_, 
+   displacement_] := 
+  Block[{nels, rows, sz, cols, Kglob, Fglob, co, Ke, Fe, fu, rowglob, 
+    colglob, uglob},
+   nels = Length[allcoords];
+   rows = Length[allcoords[[1]]];
+   sz = 2 Length[nnodes];
+   cols = rows;
+   Kglob = Table[0, {sz}, {sz}];
+   Fglob = Table[0, {sz}];
+   uglob = 
+    Table[Table[{displacement[[2 topol[[k, j]] - 1]], 
+       displacement[[2 topol[[k, j]] ]]}, {j, 1, 
+       Length[topol[[k]]]}], {k, 1, nels}];
+   
+   Table[
+    co = allcoords[[k]] // N;
+    {Ke, Fe} = CalcStiff[order, co, eltype, uglob[[k]]];
+    fu = -1;
+    Table[
+     rowglob = topol[[k, i]];
+     Table[
+      colglob = topol[[k, j]];
+      Kglob[[2 rowglob + fu, 2 colglob + fu]] += 
+       Ke[[2 i + fu, 2 j + fu]];
+      Kglob[[2 rowglob + fu, 2 colglob + 1 + fu]] += 
+       Ke[[2 i + fu, 2 j + 1 + fu]];
+      Kglob[[2 rowglob + 1 + fu, 2 colglob + fu]] += 
+       Ke[[2 i + 1 + fu, 2 j + fu]];
+      Kglob[[2 rowglob + 1 + fu, 2 colglob + 1 + fu]] += 
+       Ke[[2 i + 1 + fu, 2 j + 1 + fu]];, {j, 1, cols}];
+     Fglob[[2 rowglob + fu]] += Fe[[2 i + fu]];
+     Fglob[[2 rowglob]] += Fe[[2 i]];
+     , {i, 1, rows}];
+    , {k, 1, nels}];
+   
+   {Kglob, Fglob}
+   ];
+(*Compute one dimension shape functions*)
+ComputeShape[order_, var_, x0_, xf_] := Block[{npoints},
+  npoints = order + 1;
+  tab3[i_, n_] := Table[If[j == i, 1, 0], {j, 1, n}];
+  poli3[j_, n_] := 
+   Table[{x0 + (xf - x0) (i - 1)/(n - 1), tab3[j, n][[i]]}, {i, 1, n}];
+  ListPoli[n_] := 
+   Table[InterpolatingPolynomial[poli3[i, n], var], {i, 1, n}];
+  ListPoli[npoints]
+  ]
+(*Find node id*)
+FindIds[nodes_, coords_] := 
+  Block[{nodestofind = Nearest[nodes, coords][[All, 1]]}, 
+   Flatten[Position[nodes, Alternatives @@ nodestofind]]];
+(*Find node id*)
+LineTopology[ids_, order_] := Block[{k, vg, v, j, i},
+   k = 0;
+   vg = {};
+   For[j = 1, j < Length[ids]/(order), j++,
+    v = {};
+    For[i = 1, i <= order + 1, i++,
+     AppendTo[v, ids[[i + k]]];
+     ];
+    AppendTo[vg, v];
+    k += order;
+    ];
+   vg
+   ];
+ContributeLineDirichlet[EK_, EF_, ids_, {dir_, val_}] := 
+  Block[{nodes, i, j, k, Ek = EK, Ef = EF},
+   nodes = Length[ids];
+   For[i = 1, i <= nodes, i++,
+    If[dir == 1,
+      For[j = 1, j <= Length[Ek], j++,
+       Ek[[2 ids[[i]] - 1, j]] = 0;
+       Ek[[j, 2 ids[[i]] - 1]] = 0;
+       ];
+      Ek[[2 ids[[i]] - 1, 2 ids[[i]] - 1]] = 1;
+      Ef[[2 ids[[i]] - 1]] = val;
+      ,
+      For[j = 1, j <= Length[Ek], j++,
+       Ek[[2 ids[[i]], j]] = 0;
+       Ek[[j, 2 ids[[i]]]] = 0;
+       ];
+      Ek[[2 ids[[i]], 2 ids[[i]]]] = 1;
+      Ef[[2 ids[[i]]]] = val;
+      ];
+    ];
+   {Ek, Ef}
+   ];
+ContributeStraigthLineNewman[nodes_, order_, ids_, normal_, f_] := 
+  Block[{vecint, Ef, top, i, pt, xf, x, shapes, integral, deltas, 
+    lengths},
+   vecint = {};
+   Ef = Table[0, {Length[nodes] 2}];
+   top = LineTopology[ids, order];
+   deltas = 
+    Table[Table[
+      Norm[nodes[[top[[i, j]]]] - nodes[[top[[i, j + 1]]]]], {j, 1, 
+       order}], {i, 1, Length[top]}];
+   If[order > 1,
+    lengths = 
+      Table[deltas[[i, j]] + deltas[[i, j + 1]], {j, 1, 
+         order - 1}, {i, 1, Length[deltas]}][[1]];
+    ,
+    lengths = Flatten[deltas, 1];
+    ];
+   For[i = 1, i <= Length[lengths], i++,
+    xf = lengths[[i]];
+    shapes = ComputeShape[order, x, 0, xf];
+    integral = 
+     Table[Integrate[shapes[[i]] f[x], {x, 0, xf}], {i, 1, 
+       Length[shapes]}];
+    Table[
+     pt = nodes[[top[[i, j]]]];
+     Ef[[top[[i, j]] 2 - 1]] += integral[[j]] normal[[1]];
+     Ef[[top[[i, j]] 2]] += integral[[j]] normal[[2]];
+     ,
+     {j, 1, order + 1}
+     ];
+    ];
+   Ef
+   ];
+
+CoumpteStrain[gradprevsol_] := 
+ Block[{dudx, dudy, dvdx, dvdy, gradu, strain, ex, ey, exy, ux, uy, 
+   kk},
+  {{dudx, dudy}, {dvdx, dvdy}} = gradprevsol;
+  ex = dudx;
+  ey = dvdy;
+  exy = (dudy + dvdx);
+  {ex, ey, exy}
+  ]
+
+(*Compute the integration point contribution of the integral*)
+Contribute[data_] := 
+  Block[{NShapes, gamma, psis, GradPsi, Jac, x, y, nnodes, GradPhi, 
+    DetJ, InvJac, BB, C, ek, ef, elcoords, weight, stress, Dep, 
+    eldisplacement, gradu, epst, epsp, epse, epspeint},
+   {psis, GradPsi, elcoords, weight, eldisplacement} = data;
+   {x, y} = psis.elcoords;
+   Jac = GradPsi.elcoords;
+   nnodes = Length[psis];
+   DetJ = Det[Jac];
+   InvJac = Inverse[Jac];
+   GradPhi = InvJac.GradPsi;
+   BB = {Flatten[Table[{GradPhi[[1, i]], 0}, {i, 1, nnodes}], 1], 
+     Flatten[Table[{0, GradPhi[[2, i]]}, {i, 1, nnodes}], 1], 
+     Flatten[Table[{GradPhi[[2, i]], GradPhi[[1, i]]}, {i, 1, 
+        nnodes}], 1]};
+   NShapes = {Flatten[Table[{psis[[i]], 0}, {i, 1, Length[psis]}], 1],
+      Flatten[Table[{0, psis[[i]]}, {i, 1, Length[psis]}], 1]};
+   (*Displacement gradient*)
+   gradu = GradPhi.eldisplacement;
+   (*Infinitesimal Strain Tensor*)
+   epst = CoumpteStrain[gradu];
+   (* globalcounter =  integration point index mesh identifier. 
+   It has the size of the integration points rule multiplied by the \
+number of mesh elements.*)
+   (* Plastic strain vector in the last converged step. 
+   This vector is updated when the newton method converge.  If[
+   Converge=True, epspsolitern = epspvec] *)
+   epsp = epspsolitern[[globalcounter]];
+   (*Integration of the elastoplastic equations*)
+   {stress, Dep, epse, gamma} = 
+    ApplyStrainComputeSigmaDep[epst, epsp, subst2];
+   epspeint = epst - epse;
+   (*Store the plastic strain at the current integration point. 
+   When newton's method converge the values are transfered to \
+epspsolitern=epspvec. *)
+   epspvec[[globalcounter]] = epspeint;
+   globalcounter++;
+   AppendTo[epsppost, {x, y, epspeint}];
+   AppendTo[stressppost, {x, y, stress}];
+   AppendTo[dgamma, {x, y, gamma}];
+   (*Element Stiffness Matrix contribution*)
+   ek = (Transpose[BB].Dep.BB) weight DetJ;
+   (*Element Internal force vector contribution*)
+   ef = (Transpose[BB].stress - 
+       Transpose[NShapes].{0, -bodyforce}) weight DetJ;
+   {ek, ef}
+   ];
+
+(*CalcStiff - Assemble the element stiffness matrix and internal \
+force vectors*)
+CalcStiff[order_, elcoords_, eltype_, eldisplacement_] := 
+  Block[{nnodes, ek, ef, intrule, psis, GradPsi, xi, eta, data, w, 
+    npts},
+   
+   nnodes = Length[elcoords];
+   ek = Table[0, {nnodes 2}, {nnodes 2}];
+   ef = Table[0, {nnodes 2}];
+   intrule = IntegrationRule[order, eltype];
+   {psis, GradPsi} = Compute2DShape[order, eltype];
+   npts = Length[intrule];
+   Table[
+    {xi, eta, w} = intrule[[i]];
+    data = {psis, GradPsi, elcoords, w, eldisplacement};
+    {ek, ef} += Contribute[data];
+    , {i, 1, npts}
+    ];
+   {ek, ef}
+   ];
+
+ComputeSolNoInterpolation[topol_, coords_, order_, coefs_, eltype_, 
+  scale_] := 
+ Block[{elvecnorm, diplacenormvec, cx, cy, ux, uy, , displacevec, 
+   elvec, X, InvJ, GradPhi, GradPsi, nels, dsol, xa, xb, k = 0, i, 
+   phi, sol, phisz, j, xx, J, co, h, x = 0, psis, id, y = 0, xi, eta, 
+   Jac, DetJac, kk},
+  {psis, GradPsi} = Compute2DShape[order, eltype];
+  nels = Length[topol];
+  displacevec = {};
+  diplacenormvec = {};
+  Table[
+   elvec = {};
+   (*elvecnorm={};*)
+   x = 0.;
+   y = 0.;
+   kk = Length[psis];
+   Table[
+    id = topol[[i, j]];
+    cx = coords[[id, 1]] ;
+    cy = coords[[id, 2]] ;
+    ux = scale coefs[[2 id - 1]] ;
+     uy = scale coefs[[2 id]] ;
+    AppendTo[elvec, {{cx, cy}, {ux + cx, uy + cy}}];
+    AppendTo[diplacenormvec, {cx, cy, Norm[{ux/scale, uy/scale}]}];
+    , {j, 1, kk}];
+   AppendTo[displacevec, elvec];
+   (*AppendTo[diplacenormvec,elvec];*)
+   , {i, 1, nels}];
+  {displacevec, diplacenormvec}
+  ]
+pack = Developer`ToPackedArray;
+
+topol = pack@
+   Transpose@
+    Drop[Transpose@
+      Import["https://www.dropbox.com/s/setx566dvgx3urx/mesh-els-\
+strip-foot-structured4.txt?dl=1", "Table"], 1];
+nnodesAll = 
+  Import["https://www.dropbox.com/s/mxelbdwug4yv3lr/mesh-nodes-strip-\
+foot-structured4.txt?dl=1", "Table"];
+(*topol=pack@Transpose@Drop[Transpose@Import["https://www.dropbox.com/\
+s/gz1rastmoemiaz0/mesh-els-strip-foot-structured-ninenode.txt?dl=1",\
+"Table"],1];
+nnodesAll=Import["https://www.dropbox.com/s/vaz8ljhr79hxpnt/mesh-\
+nodes-strip-foot-structured-ninenode.txt?dl=1","Table"];*)
+
+nnodes = pack@N[nnodesAll[[All, {2, 3}]]];
+allcoords = 
+  Table[nnodes[[topol[[i]][[j]]]], {i, 1, Length[topol]}, {j, 1, 8}];
+(*edges are straight*)
+meshVis1 = 
+  Graphics[{FaceForm[], EdgeForm[Dashing[Tiny]], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+meshVis1 = 
+  Graphics[{FaceForm[], EdgeForm[Black], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+nodeVis = 
+  Graphics[{PointSize[Medium], Black, 
+    MapIndexed[Text[#2[[1]], #1, {-1, 1}] &, nnodes], {Black, 
+     Point[nnodes]}}];
+nodeVis = Graphics[{PointSize[Medium], Black, {Black, Point[nnodes]}}];
+Show[meshVis1];
+el = 60;
+nodeel = Table[nnodes[[topol[[el]][[i]]]], {i, 1, Length[topol[[el]]]}]
+nodeVis = Graphics[{PointSize[Medium], Black, {Black, Point[nodeel]}}];
+Show[meshVis1, nodeVis]
+order = 2
+serendipity = False;
+
+a = 500;
+b2 = 50;
+x0 = 0.; xf = a;
+y0 = 0; yf = 0;
+ndivs = 10000;
+searchpathinferiorline = 
+  Flatten[Table[{x, y}, {x, x0, xf, (xf - x0)/ndivs}, {y, y0, 
+     yf, (yf - y0)/ndivs}], 1];
+x0 = 0; xf = 0.;
+y0 = 0; yf = a;
+searchpathleftline = Table[{x0, y}, {y, y0, yf, (yf - y0)/ndivs}];
+x0 = 0; xf = b2;
+y0 = a; yf = a;
+searchpathupline = Table[{x, y0}, {x, x0, xf, (xf - x0)/ndivs}];
+x0 = a; xf = a;
+y0 = 0; yf = a;
+searchpathrigthline = Table[{x0, y}, {y, y0, yf, (yf - y0)/ndivs}];
+idsinferior = FindIds[nnodes, searchpathinferiorline]
+idsleft = FindIds[nnodes, searchpathleftline]
+idssup = FindIds[nnodes, searchpathupline]
+idsrigth = FindIds[nnodes, searchpathrigthline]
+subst2 = {c -> 490., phi -> 20/180. Pi, young -> 10^7. (*kPa*), 
+   nu -> 0.48 , G -> young/(2 (1 + nu)), K -> (young)/(3 (1 - 2 nu)), 
+   A -> 3 Tan[phi]/Sqrt[9 + 12 Tan[phi]^2],
+   B -> 3 /Sqrt[9 + 12 Tan[phi]^2]};
+bodyforce = 0;
+planestress = False;
+serendipity = True;
+order = 2;
+eltype = 1;
+f[x_] := 15 c //. subst2 ;
+FEXT = ContributeStraigthLineNewman[nnodes, order, idssup, {0, -1}, f];
+fac = Table[i, {i, 0.1, 1, (1 - 0.1)/7}];
+fac = {0.1, 0.3, 0.6, 0.7, 0.8, 0.825, 0.85, 0.875, 0.9, 0.95, 0.96, 
+  0.97, 0.98, 0.981, 0.982, 0.983, 0.984, 0.985, 0.986, 0.987, 0.988, 
+  0.989, 0.99, 0.991, 0.992, 0.993, 0.994, 0.995, 0.996, 0.997, 0.998,
+   0.999, 1}
+globalcounter = 1;
+intrule = IntegrationRule[order, eltype];
+npts = Length[intrule]; 
+nglobalpts = Length[topol] npts;
+
+
+epspvec = Table[0, {nglobalpts}, {3}];
+epspsolitern = Table[0, {nglobalpts}, {3}];
+solss = {};
+sol2 = {{0, 0}};
+sol3 = {};
+
+displace = Table[0, {Length[nnodes] 2}];
+AppendTo[solss, displace];
+epspsolu = {};
+stresssolu = {};
+dgammasol = {};
+
+For[i = 1, i <= Length[fac], i++,
+  Print["i = ", i, " | fac = ", f[x] fac[[i]]];
+  counter = 1;
+  err1 = 10;
+  err2 = 10;
+  err3 = 10;
+  tol = 0.001;
+  dw = Table[0, {Length[nnodes] 2}];
+  (*displace=Table[0,{Length[nnodes] 2}];*)
+  diverge = False;
+  If[i <= 10, flag = True, flag = False];
+  Print["flag = ", flag];
+  
+  While[counter <= 100 && err1 > tol,
+   globalcounter = 1;
+   
+   epsppost = {};
+   dgamma = {};
+   stressppost = {};
+   
+   {KT, FINT} = 
+    Assemble[allcoords, nnodes, topol, order, eltype, displace];
+   
+   imposex = 1;
+   imposey = 2;
+   
+   R = fac[[i]] FEXT - FINT;
+   
+   {KT, R} = ContributeLineDirichlet[KT, R, idsinferior, {imposey, 0}];
+   {KT, R} = ContributeLineDirichlet[KT, R, idsleft, {imposex, 0}];
+   {KT, R} = ContributeLineDirichlet[KT, R, idsrigth, {imposex, 0}];
+   
+   dw = LinearSolve[KT, R, Method -> "Banded"];
+   
+   displace += dw;
+   err1 = Norm[R]/Norm[fac[[i]] FEXT];
+   err2 = Norm[dw]/Norm[displace];
+   err3 = Norm[R];
+   
+   If[err1 > 10^5, Break[];];
+   If[err1 > 1, diverge = True, diverge = False];
+   
+   Print["Iteration number = " , counter, "  |R|/|FE| =  ", 
+    Norm[R]/Norm[fac[[i]] FEXT], "  |\[CapitalDelta]u|/|u| = ", 
+    Norm[dw]/Norm[displace], "  |R| =  ", Norm[R] , " |dw| = ", 
+    Norm[dw], " | Norm[factor FEXT] = ", Norm[fac[[i]] FEXT], 
+    " | err1 = ", err1, " | diverge = ", diverge];
+   
+   counter++;
+   ];
+  
+  (*dados para pos-processamento*)
+  AppendTo[stresssolu, stressppost];
+  AppendTo[dgammasol, dgamma];
+  AppendTo[epspsolu, epsppost];
+  AppendTo[solss, displace];
+  id = FindIds[nnodes, {{0, 500}}][[1]];
+  AppendTo[sol2, {-displace[[id 2]]/100, f[x] fac[[i]]/c //. subst2}];
+  AppendTo[sol3, epspvec];
+  
+  
+  (*Atualiza variável de estado plástica no passo convergido*)
+  epspsolitern = epspvec;
+  
+  
+  ];
+solu = 33;
+sol = solss[[solu]];
+scale = 200;
+deformed = (Flatten[nnodes] + scale sol);
+tabdeformed = 
+  Table[{deformed[[i]], deformed[[i + 1]]}, {i, 1, Length[deformed], 
+    2}];
+g = Show[meshVis1, 
+  Graphics[{FaceForm[], EdgeForm[Black], 
+    GraphicsComplex[tabdeformed, 
+     Polygon[topol[[All, {1, 2, 3, 4}]]]]}]]
+
+
+{vecs2, vecs3} = 
+  ComputeSolNoInterpolation[topol, nnodes, order, sol, eltype, scale];
+arrows = Table[
+   Graphics[{Arrowheads[.02], 
+     Arrow[{vecs2[[el]][[i]][[1]], vecs2[[el]][[i]][[2]]}]}], {el, 1, 
+    Length[vecs2]}, {i, 1, Length[vecs2[[el]]]}];
+sh = Show[meshVis1, arrows, PlotRange -> All]
+
+teste1 = Table[{dgammasol[[solu]][[i]][[1]], 
+    dgammasol[[solu]][[i]][[2]], dgammasol[[solu]][[i]][[3]]}, {i, 1, 
+    Length[dgammasol[[solu]]]}];
+Show[ListContourPlot[teste1, 
+  PlotLegends -> {Placed[Automatic, {Right, Center}]}], 
+ PlotRange -> All, AspectRatio -> Automatic, Frame -> False]
+ListContourPlot[vecs3]
+(*show[{{0,340},{160,515}},sh]*)
+
+tab = Table[{epspsolu[[solu]][[i]][[1]], epspsolu[[solu]][[i]][[2]], 
+    Norm[epspsolu[[solu]][[i]][[3]]]}, {i, 1, 
+    Length[epspsolu[[solu]]]}];
+ListContourPlot[tab]
+pack = Developer`ToPackedArray;
+topol = pack@
+   Transpose@
+    Drop[Transpose@
+      Import["https://www.dropbox.com/s/pyio7qkv52a6n60/mesh-talude-\
+els.txt?dl=1", "Table"], 1];
+nnodesAll = 
+  Import["https://www.dropbox.com/s/wkcyf51o1wppmpx/mesh-talude-nodes.\
+txt?dl=1", "Table"];
+nnodes = pack@N[nnodesAll[[All, {2, 3}]]];
+allcoords = 
+  Table[nnodes[[topol[[i]][[j]]]], {i, 1, Length[topol]}, {j, 1, 8}];
+(*edges are straight*)
+meshVis1 = 
+  Graphics[{FaceForm[], EdgeForm[Dashing[Tiny]], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+
+meshVis2 = 
+  Graphics[{FaceForm[], EdgeForm[Black], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+nodeVis = 
+  Graphics[{PointSize[Medium], Black, 
+    MapIndexed[Text[#2[[1]], #1, {-1, 1}] &, nnodes], {Black, 
+     Point[nnodes]}}];
+meshVis1 = 
+  Graphics[{FaceForm[], EdgeForm[Dashing[Tiny]], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+meshVis1 = 
+  Graphics[{FaceForm[], EdgeForm[Black], 
+    GraphicsComplex[nnodes, Polygon[topol[[All, {1, 2, 3, 4}]]]]}];
+nodeVis = 
+  Graphics[{PointSize[Medium], Black, 
+    MapIndexed[Text[#2[[1]], #1, {-1, 1}] &, nnodes], {Black, 
+     Point[nnodes]}}];
+el = 1;
+nodeel = Table[nnodes[[topol[[el]][[i]]]], {i, 1, Length[topol[[el]]]}]
+nodeVis = Graphics[{PointSize[Medium], Black, {Black, Point[nodeel]}}];
+Show[meshVis1, nodeVis]
+
+order = 2
+serendipity = True;
+
+x0 = 0.; xf = 75;
+y0 = 0; yf = 0;
+ndivs = 10000;
+searchpathinferiorline = 
+  Flatten[Table[{x, y}, {x, x0, xf, (xf - x0)/ndivs}, {y, y0, 
+     yf, (yf - y0)/ndivs}], 1];
+x0 = 0; xf = 0.;
+y0 = 0; yf = 40;
+searchpathleftline = Table[{x0, y}, {y, y0, yf, (yf - y0)/ndivs}];
+x0 = 75; xf = 75;
+y0 = 0; yf = 30;
+searchpathrigthline = Table[{x0, y}, {y, y0, yf, (yf - y0)/ndivs}];
+idsinferior = FindIds[nnodes, searchpathinferiorline]
+idsleft = FindIds[nnodes, searchpathleftline]
+idsrigth = FindIds[nnodes, searchpathrigthline]
+subst2 = {c -> 50., phi -> 20/180. Pi, young -> 20000. (*kPa*), 
+   nu -> 0.49, G -> young/(2 (1 + nu)), K -> (young)/(3 (1 - 2 nu)), 
+   A -> 3 Tan[phi]/Sqrt[9 + 12 Tan[phi]^2],
+   B -> 3 /Sqrt[9 + 12 Tan[phi]^2]};
+(*inner*)
+(*subst2={c\[Rule]50.,phi\[Rule]20/180. Pi,young\[Rule]20000. \
+(*kPa*),nu\[Rule]0.49,G\[Rule]young/(2(1+nu)),K->(young)/(3 \
+(1-2nu)),A\[Rule]6 Sin[phi]/(Sqrt[3](3+ Sin[phi])),
+B->6 Cos[phi]/(Sqrt[3](3+ Sin[phi]))};*)
+(*outer*)
+(*subst2={c\[Rule]50.,phi\[Rule]20/180. Pi,young\[Rule]20000. \
+(*kPa*),nu\[Rule]0.49,G\[Rule]young/(2(1+nu)),K->(young)/(3 \
+(1-2nu)),A\[Rule]6 Sin[phi]/(Sqrt[3](3- Sin[phi])),
+B->6 Cos[phi]/(Sqrt[3](3- Sin[phi]))};*)
+planestress = False;
+serendipity = True;
+diverge = False;
+order = 2;
+eltype = 1;
+f[x_] := 0;
+FEXT = ContributeStraigthLineNewman[nnodes, order, idssup, {0, -1}, f];
+body = 20;
+fac = {1, 2, 3, 4.045, 4.1, 4.2, 4.3, 4.35, 4.375}
+globalcounter = 1;
+intrule = IntegrationRule[order, eltype];
+npts = Length[intrule]; 
+nglobalpts = Length[topol] npts;
+epspvec = Table[0, {nglobalpts}, {3}];
+epspsolitern = Table[0, {nglobalpts}, {3}];
+
+
+solss = {};
+soltalude = {{0, 0}};
+sol3 = {};
+
+displace = Table[0, {Length[nnodes] 2}];
+AppendTo[solss, displace];
+epspsolu = {};
+stresssolu = {};
+dgammasol = {};
+For[i = 1, i <= Length[fac], i++,
+  Print["i = ", i, " | fac = ", f[x] fac[[i]]];
+  displace = Table[0, {Length[nnodes] 2}];
+  counter = 1;
+  err1 = 10;
+  err2 = 10;
+  err3 = 10;
+  tol = 0.000001;
+  dw = Table[0, {Length[nnodes] 2}];
+  
+  If[i <= 10, flag = True, flag = False];
+  Print["flag = ", flag];
+  
+  While[counter <= 100 && err2 > tol,
+   globalcounter = 1;
+   
+   epsppost = {};
+   dgamma = {};
+   stressppost = {};
+   bodyforce = fac[[i]] body;
+   {KT, FINT} = 
+    Assemble[allcoords, nnodes, topol, order, eltype, displace];
+   
+   imposex = 1;
+   imposey = 2;
+   
+   R =  FEXT - FINT;
+   
+   {KT, R} = ContributeLineDirichlet[KT, R, idsinferior, {imposey, 0}];
+   {KT, R} = ContributeLineDirichlet[KT, R, idsleft, {imposex, 0}];
+   {KT, R} = ContributeLineDirichlet[KT, R, idsrigth, {imposex, 0}];
+   
+   dw = LinearSolve[KT, R, Method -> "Banded"];
+   
+   displace += dw;
+   (*err1=Norm[R]/Norm[fac[[i]] FEXT];*)
+   err2 = Norm[dw]/Norm[displace];
+   err3 = Norm[R];
+   
+   If[err1 > 10^5, Break[];];
+   If[err1 > 1, diverge = True, diverge = False];
+   Print["Iteration number = " , counter,(*"  |R|/|FE| =  ",Norm[R]/
+    Norm[fac[[i]] FEXT],*) "  |\[CapitalDelta]u|/|u| = ", 
+    Norm[dw]/Norm[displace], "  |R| =  ", Norm[R] , " |dw| = ", 
+    Norm[dw], " | bodyforce = ", bodyforce, " | fac = ", fac[[i]], 
+    " | diverge = ", diverge];
+   
+   
+   counter++;
+   ];
+  
+  (*dados para pos-processamento*)
+  AppendTo[stresssolu, stressppost];
+  AppendTo[dgammasol, dgamma];
+  AppendTo[epspsolu, epsppost];
+  AppendTo[solss, displace];
+  id = FindIds[nnodes, {{35, 40}}][[1]];
+  AppendTo[soltalude, {-displace[[id 2]], fac[[i]]}];
+  AppendTo[sol3, epspvec];
+  
+  
+  (*Atualiza variável de estado plástica no passo convergido*)
+  epspsolitern = epspvec;
+  
+  
+  ];
+sol = solss[[5]];
+scale = 5;
+deformed = (Flatten[nnodes] + scale sol);
+tabdeformed = 
+  Table[{deformed[[i]], deformed[[i + 1]]}, {i, 1, Length[deformed], 
+    2}];
+g = Show[meshVis1, 
+  Graphics[{FaceForm[], EdgeForm[Black], 
+    GraphicsComplex[tabdeformed, 
+     Polygon[topol[[All, {1, 2, 3, 4}]]]]}]]
+
+Show[ListLinePlot[soltalude, AspectRatio -> 1, 
+  PlotMarkers -> {Automatic, 10}], Plot[4.045, {x, 0, 1}], 
+ PlotRange -> {{0, 1.}, {0, 5}}]
